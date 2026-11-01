@@ -90,12 +90,9 @@ export class ActivationState {
     try {
       return await firstValueFrom(this.http.post<T>(endpoint, body));
     } catch (err) {
-      if (err instanceof HttpErrorResponse && (err.status === 404 || err.status === 0)) {
-        // Fallback to live Cloud Run backend if local API is missing on custom domain / static host
-        const fallbackUrl = `${this.fallbackBackend}${endpoint}`;
-        return await firstValueFrom(this.http.post<T>(fallbackUrl, body));
-      }
-      throw err;
+      console.warn(`Relative API ${endpoint} failed, retrying with live Cloud Run backend...`, err);
+      const fallbackUrl = `${this.fallbackBackend}${endpoint}`;
+      return await firstValueFrom(this.http.post<T>(fallbackUrl, body));
     }
   }
 
@@ -103,11 +100,9 @@ export class ActivationState {
     try {
       return await firstValueFrom(this.http.get<T>(endpoint));
     } catch (err) {
-      if (err instanceof HttpErrorResponse && (err.status === 404 || err.status === 0)) {
-        const fallbackUrl = `${this.fallbackBackend}${endpoint}`;
-        return await firstValueFrom(this.http.get<T>(fallbackUrl));
-      }
-      throw err;
+      console.warn(`Relative API ${endpoint} failed, retrying with live Cloud Run backend...`, err);
+      const fallbackUrl = `${this.fallbackBackend}${endpoint}`;
+      return await firstValueFrom(this.http.get<T>(fallbackUrl));
     }
   }
 
