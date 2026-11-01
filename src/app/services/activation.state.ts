@@ -89,10 +89,10 @@ export class ActivationState {
   }
 
   private resolveUrl(endpoint: string): string {
-    if (typeof window !== 'undefined' && window.location.origin === this.baseUrl) {
+    if (typeof window !== 'undefined') {
       return endpoint;
     }
-    return `${this.baseUrl}${endpoint}`;
+    return `http://localhost:3000${endpoint}`;
   }
 
   private async postApi<T>(endpoint: string, body: unknown): Promise<T> {
@@ -100,7 +100,7 @@ export class ActivationState {
     try {
       return await firstValueFrom(this.http.post<T>(primaryUrl, body));
     } catch (err) {
-      console.warn(`Primary API ${primaryUrl} failed, retrying with live Cloud Run backend...`, err);
+      console.warn(`Primary API ${primaryUrl} failed, falling back to Cloud Run backend...`, err);
       const fallbackUrl = `${this.fallbackBackend}${endpoint}`;
       return await firstValueFrom(this.http.post<T>(fallbackUrl, body));
     }
@@ -111,7 +111,7 @@ export class ActivationState {
     try {
       return await firstValueFrom(this.http.get<T>(primaryUrl));
     } catch (err) {
-      console.warn(`Primary API ${primaryUrl} failed, retrying with live Cloud Run backend...`, err);
+      console.warn(`Primary API ${primaryUrl} failed, falling back to Cloud Run backend...`, err);
       const fallbackUrl = `${this.fallbackBackend}${endpoint}`;
       return await firstValueFrom(this.http.get<T>(fallbackUrl));
     }

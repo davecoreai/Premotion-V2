@@ -13,8 +13,6 @@ export interface ActivationRecord {
   plan: string;
   subscriptionType: string;
   status: 'ACTIVE' | 'PENDING' | 'EXPIRED';
-  idToken?: string;
-  refreshToken?: string;
 }
 
 export interface GlobalStats {
@@ -27,12 +25,15 @@ export interface GlobalStats {
 const DATA_DIR = path.join(process.cwd(), 'data');
 const HISTORY_FILE = path.join(DATA_DIR, 'global_history.json');
 
+// In-memory cache for serverless environments where disk is read-only
+let memoryHistoryCache: ActivationRecord[] | null = null;
+
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
     try {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     } catch (e) {
-      console.error('Failed to create data dir:', e);
+      console.debug('Read-only or serverless filesystem notice:', e);
     }
   }
 }
@@ -57,27 +58,35 @@ function getTodayString(): string {
 }
 
 export function getGlobalHistory(): ActivationRecord[] {
+  if (memoryHistoryCache !== null) {
+    return memoryHistoryCache;
+  }
+
   ensureDataDir();
   try {
     if (fs.existsSync(HISTORY_FILE)) {
       const content = fs.readFileSync(HISTORY_FILE, 'utf-8');
       const list: ActivationRecord[] = JSON.parse(content);
       if (Array.isArray(list)) {
-        return list;
+        memoryHistoryCache = list;
+        return memoryHistoryCache;
       }
     }
   } catch (err) {
-    console.error('Error loading history:', err);
+    console.debug('History load from disk notice:', err);
   }
-  return [];
+
+  memoryHistoryCache = [];
+  return memoryHistoryCache;
 }
 
 export function saveGlobalHistory(history: ActivationRecord[]) {
+  memoryHistoryCache = history;
   ensureDataDir();
   try {
     fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Error saving history:', err);
+    console.debug('History save to disk notice (using in-memory cache):', err);
   }
 }
 
@@ -86,8 +95,8 @@ export function getGlobalStats(): GlobalStats {
   const today = getTodayString();
 
   const totalActivations = history.length;
-  const uniqueUsers = new Set(history.map(item => item.email.toLowerCase().trim())).size;
-  const todayActivations = history.filter(item => item.activatedAt && item.activatedAt.startsWith(today)).length;
+  const uniqueUsers = new Set(history.map((item) => item.email.toLowerCase().trim())).size;
+  const todayActivations = history.filter((item) => item.activatedAt && item.activatedAt.startsWith(today)).length;
 
   return {
     totalActivations,
@@ -97,7 +106,32 @@ export function getGlobalStats(): GlobalStats {
   };
 }
 
-export function addGlobalActivation(record: ActivationRecord): { stats: GlobalStats; history: ActivationRecord[] } {
+export function addGlobalActivation(rawRecord: Partial<ActivationRecord> & {
+  orderId: string;
+  email: string;
+  maskedEmail: string;
+  uid: string;
+  activatedAt: string;
+  validUntil: string;
+  validUntilTimestamp: number;
+  plan: string;
+  subscriptionType: string;
+  status: 'ACTIVE' | 'PENDING' | 'EXPIRED';
+}): { stats: GlobalStats; history: ActivationRecord[] } {
+  // Explicitly strip sensitive tokens if present
+  const record: ActivationRecord = {
+    orderId: rawRecord.orderId,
+    email: rawRecord.email,
+    maskedEmail: rawRecord.maskedEmail,
+    uid: rawRecord.uid,
+    activatedAt: rawRecord.activatedAt,
+    validUntil: rawRecord.validUntil,
+    validUntilTimestamp: rawRecord.validUntilTimestamp,
+    plan: rawRecord.plan,
+    subscriptionType: rawRecord.subscriptionType,
+    status: rawRecord.status,
+  };
+
   const history = getGlobalHistory();
   // Insert at the beginning of the list
   history.unshift(record);

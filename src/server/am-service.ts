@@ -140,10 +140,13 @@ export async function verifyAndActivate(email: string, rawLink: string) {
       }
     );
 
-    const idToken = signInRes.data.idToken;
-    const refreshToken = signInRes.data.refreshToken;
-    const uid = signInRes.data.localId;
-    const isNewUser = !!signInRes.data.isNewUser;
+    const idToken = signInRes.data?.idToken;
+    const uid = signInRes.data?.localId;
+    const isNewUser = !!signInRes.data?.isNewUser;
+
+    if (!idToken) {
+      return { ok: false, error: 'Gagal melakukan otentikasi login dengan magic link.' };
+    }
 
     // 2. Activate Premium Subscription via Cloud Function verifyPurchase
     const purchaseBody = {
@@ -161,16 +164,39 @@ export async function verifyAndActivate(email: string, rawLink: string) {
       'firebase-instance-id-token': 'cSDnCyp3T-uwp07z3tL86T:APA91bFkmvvsHw5nnqa1SBFci-99DRsKClLiETdRrVcJjS5yBx1v_FbCb1d8WhBuea_zmwnYBktyTIzcRhN4b6uNOUur9wPc0gKXmJDoZic0LhNq5V2s0xI',
     };
 
+    let purchaseSuccess = true;
+    let purchaseErrorDetail = '';
+
     try {
-      await axios.post(VERIFY_PURCHASE_URL, purchaseBody, {
+      const purchaseRes = await axios.post(VERIFY_PURCHASE_URL, purchaseBody, {
         headers: spoofHeaders(purchaseHeaders),
         timeout: 15000,
       });
+
+      if (purchaseRes.data && purchaseRes.data.error) {
+        purchaseSuccess = false;
+        purchaseErrorDetail = JSON.stringify(purchaseRes.data.error);
+      }
     } catch (purchaseErr: unknown) {
-      const pErr = purchaseErr as Error;
-      console.warn('Purchase verify endpoint response:', pErr.message);
+      const pErr = purchaseErr as { response?: { data?: unknown }; message?: string };
+      purchaseErrorDetail = pErr.response?.data ? JSON.stringify(pErr.response.data) : (pErr.message || String(purchaseErr));
+      console.warn('Purchase verification status:', purchaseErrorDetail);
+
+      // If purchase verification explicitly rejects, flag error
+      if (purchaseErrorDetail.includes('INVALID_PURCHASE') || purchaseErrorDetail.includes('PURCHASE_EXPIRED')) {
+        purchaseSuccess = false;
+      }
     }
 
+    if (!purchaseSuccess) {
+      return {
+        ok: false,
+        error: 'Verifikasi konfirmasi lisensi pembelian gagal. Silakan periksa kembali tautan yang dimasukkan.',
+        raw: purchaseErrorDetail,
+      };
+    }
+
+    // Do NOT return sensitive idToken or refreshToken to client!
     return {
       ok: true,
       data: {
@@ -183,8 +209,6 @@ export async function verifyAndActivate(email: string, rawLink: string) {
         plan: 'Premium',
         subscriptionType: 'Yearly Premium',
         status: 'ACTIVE' as const,
-        idToken,
-        refreshToken,
         isNewUser,
       }
     };

@@ -42,6 +42,35 @@ app.use((req, res, next) => {
   next();
 });
 
+// Rate limiting for activation endpoints (max 10 attempts per 15 minutes per IP)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function rateLimiter(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const WINDOW_MS = 15 * 60 * 1000;
+  const MAX_REQUESTS = 10;
+
+  const current = rateLimitMap.get(clientIp);
+
+  if (!current || now > current.resetTime) {
+    rateLimitMap.set(clientIp, { count: 1, resetTime: now + WINDOW_MS });
+    next();
+    return;
+  }
+
+  if (current.count >= MAX_REQUESTS) {
+    res.status(429).json({
+      success: false,
+      message: 'Terlalu banyak percobaan aktivasi dari IP Anda. Silakan tunggu 15 menit.',
+    });
+    return;
+  }
+
+  current.count += 1;
+  next();
+}
+
 // Start 5-minute periodic Telegram stats timer
 startPeriodicStatsTimer();
 
@@ -153,9 +182,9 @@ app.post('/api/telegram/test', async (req, res) => {
 });
 
 /**
- * Send Magic Link to Email
+ * Send Magic Link to Email (Rate limited)
  */
-app.post('/api/send-link', async (req, res) => {
+app.post('/api/send-link', rateLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email || !email.includes('@') || !email.includes('.')) {
     return res.status(400).json({
@@ -183,9 +212,9 @@ app.post('/api/send-link', async (req, res) => {
 });
 
 /**
- * Verify Magic Link & Activate Alight Motion Premium
+ * Verify Magic Link & Activate Alight Motion Premium (Rate limited & secure token stripping)
  */
-app.post('/api/verify-link', async (req, res) => {
+app.post('/api/verify-link', rateLimiter, async (req, res) => {
   const { email, magicLink } = req.body;
   if (!email || !email.includes('@')) {
     return res.status(400).json({
@@ -211,7 +240,7 @@ app.post('/api/verify-link', async (req, res) => {
     });
   }
 
-  // Record into global history with Order ID: Premotion - *******
+  // Record into global history with Order ID: Premotion - ******* (Without sensitive tokens)
   const activationData = result.data!;
   const newRecord = {
     orderId: activationData.orderId,
@@ -224,8 +253,6 @@ app.post('/api/verify-link', async (req, res) => {
     plan: activationData.plan,
     subscriptionType: activationData.subscriptionType,
     status: 'ACTIVE' as const,
-    idToken: activationData.idToken,
-    refreshToken: activationData.refreshToken,
   };
 
   const { stats } = addGlobalActivation(newRecord);
@@ -239,7 +266,7 @@ app.post('/api/verify-link', async (req, res) => {
     success: true,
     message: 'Verifikasi berhasil! Alight Motion Premium kini aktif.',
     data: {
-      ...activationData,
+      ...newRecord,
       stats: {
         total: stats.totalActivations,
         today: stats.todayActivations,
