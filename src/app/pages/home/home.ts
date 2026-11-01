@@ -14,35 +14,28 @@ import { ActivationState } from '../../services/activation.state';
   imports: [RouterLink, MatIconModule, DatePipe],
   template: `
     <div class="page-enter-animation space-y-6 pb-28 pt-2">
-      <!-- Hero Welcome Banner (NO GRADIENTS, NO ABU-ABU) -->
-      <div class="liquid-glass-card p-6 md:p-8 relative">
-        <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <!-- Hero Welcome Banner with 16:9 Image -->
+      <div class="liquid-glass-card overflow-hidden relative">
+        <!-- 16:9 Banner Image Container -->
+        <div class="relative w-full aspect-video overflow-hidden rounded-t-2xl bg-slate-900 border-b border-white/10">
+          <img
+            src="https://i.imgur.com/AMySnri.png"
+            alt="Premotion Alight Motion 1 Year Banner"
+            class="w-full h-full object-cover"
+            referrerpolicy="no-referrer"
+          />
+        </div>
+
+        <div class="p-6 md:p-8 relative z-10">
           <div class="space-y-2.5">
             <!-- Mandatory Requested Title: Aktivasi Alight Motion Premium 1 Tahun -->
             <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
               Aktivasi Alight Motion Premium 1 Tahun
             </h1>
 
-            <p class="text-slate-200 text-sm max-w-xl leading-relaxed">
+            <p class="text-slate-200 text-sm leading-relaxed">
               Sistem aktivasi otomatis dengan protokol reverse engineering mendalam. Cukup masukkan email, klik magic link, dan Premium terpasang langsung ke akun Anda.
             </p>
-          </div>
-
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-            <a
-              routerLink="/activation"
-              class="liquid-glass-btn-primary flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm cursor-pointer"
-            >
-              <mat-icon class="text-white text-[18px]">bolt</mat-icon>
-              <span>Mulai Aktivasi</span>
-            </a>
-            <a
-              routerLink="/history"
-              class="liquid-glass-btn-secondary flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm cursor-pointer"
-            >
-              <mat-icon class="text-emerald-400 text-[18px]">receipt_long</mat-icon>
-              <span>History Global</span>
-            </a>
           </div>
         </div>
       </div>

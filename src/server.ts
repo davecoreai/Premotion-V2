@@ -13,6 +13,13 @@ import {
   addGlobalActivation,
   maskEmail,
 } from './server/storage';
+import {
+  getTelegramConfig,
+  updateTelegramConfig,
+  notifyNewActivation,
+  sendPeriodicStatsReport,
+  startPeriodicStatsTimer,
+} from './server/telegram';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
@@ -22,6 +29,9 @@ const angularApp = new AngularNodeAppEngine();
 // Middlewares for API parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Start 5-minute periodic Telegram stats timer
+startPeriodicStatsTimer();
 
 // --- REST API ENDPOINTS ---
 
@@ -73,6 +83,60 @@ app.get('/api/status', (req, res) => {
     provider: 'Alight Creative Identity Gateway',
     timestamp: new Date().toISOString(),
   });
+});
+
+/**
+ * Telegram Config & Testing Endpoints
+ */
+app.get('/api/telegram/config', (req, res) => {
+  const config = getTelegramConfig();
+  res.json({
+    success: true,
+    botToken: config.botToken ? '••••••••' + config.botToken.slice(-4) : '',
+    chatId: config.chatId,
+    enabled: config.enabled,
+    hasToken: Boolean(config.botToken && config.chatId),
+  });
+});
+
+app.post('/api/telegram/config', (req, res) => {
+  const { botToken, chatId, enabled } = req.body;
+  const updated = updateTelegramConfig({
+    ...(botToken !== undefined && { botToken: botToken.trim() }),
+    ...(chatId !== undefined && { chatId: String(chatId).trim() }),
+    ...(enabled !== undefined && { enabled: Boolean(enabled) }),
+  });
+
+  res.json({
+    success: true,
+    message: 'Konfigurasi Telegram Bot berhasil diperbarui!',
+    config: {
+      botToken: updated.botToken ? '••••••••' + updated.botToken.slice(-4) : '',
+      chatId: updated.chatId,
+      enabled: updated.enabled,
+      hasToken: Boolean(updated.botToken && updated.chatId),
+    },
+  });
+});
+
+app.post('/api/telegram/test', async (req, res) => {
+  try {
+    const sent = await sendPeriodicStatsReport();
+    if (sent) {
+      res.json({
+        success: true,
+        message: 'Pesan tes statistik berhasil dikirim ke Telegram Bot!',
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Gagal mengirim pesan. Pastikan Bot Token dan Chat ID sudah benar dan Bot telah di-start di Telegram.',
+      });
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ success: false, message: msg });
+  }
 });
 
 /**
@@ -152,6 +216,11 @@ app.post('/api/verify-link', async (req, res) => {
   };
 
   const { stats } = addGlobalActivation(newRecord);
+
+  // Send real-time notification to Telegram Bot for every new history entry!
+  notifyNewActivation(newRecord).catch((err) => {
+    console.error('Failed to dispatch Telegram notification:', err);
+  });
 
   return res.json({
     success: true,

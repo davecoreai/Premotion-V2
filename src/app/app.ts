@@ -83,7 +83,7 @@ export class App {
     } else if (url.includes('history')) {
       this.activeTabIndex.set(2);
     } else {
-      this.activeTabIndex.set(0);
+      this.activeTabIndex.set(0); // Home
     }
   }
 }
