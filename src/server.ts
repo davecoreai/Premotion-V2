@@ -121,8 +121,8 @@ app.post('/api/telegram/config', (req, res) => {
 
 app.post('/api/telegram/test', async (req, res) => {
   try {
-    const sent = await sendPeriodicStatsReport();
-    if (sent) {
+    const result = await sendPeriodicStatsReport();
+    if (result.ok) {
       res.json({
         success: true,
         message: 'Pesan tes statistik berhasil dikirim ke Telegram Bot!',
@@ -130,7 +130,8 @@ app.post('/api/telegram/test', async (req, res) => {
     } else {
       res.status(400).json({
         success: false,
-        message: 'Gagal mengirim pesan. Pastikan Bot Token dan Chat ID sudah benar dan Bot telah di-start di Telegram.',
+        message: result.message || 'Gagal mengirim pesan. Pastikan Bot Token dan Chat ID benar dan Bot telah dikirim pesan /start.',
+        errorCode: result.errorCode,
       });
     }
   } catch (err: unknown) {
@@ -276,3 +277,6 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
  * Request handler used by the Angular CLI (for dev-server and during build).
  */
 export const reqHandler = createNodeRequestHandler(app);
+
+export { app };
+export default app;

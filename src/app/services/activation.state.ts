@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 export interface GlobalRecord {
@@ -153,8 +153,7 @@ export class ActivationState {
         return false;
       }
     } catch (err: unknown) {
-      const errorObj = err as { error?: { message?: string } };
-      const msg = errorObj?.error?.message || 'Gagal terhubung ke gateway aktivasi. Silakan coba lagi.';
+      const msg = this.extractErrorMessage(err, 'Gagal terhubung ke gateway aktivasi. Silakan coba lagi.');
       this.statusError.set(msg);
       return false;
     } finally {
@@ -219,12 +218,32 @@ export class ActivationState {
         return false;
       }
     } catch (err: unknown) {
-      const errorObj = err as { error?: { message?: string } };
-      const msg = errorObj?.error?.message || 'Verifikasi gagal atau link kedaluwarsa. Silakan periksa link dari email.';
+      const msg = this.extractErrorMessage(err, 'Verifikasi gagal atau link kedaluwarsa. Silakan periksa link dari email.');
       this.statusError.set(msg);
       return false;
     } finally {
       this.isVerifying.set(false);
     }
+  }
+
+  private extractErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof HttpErrorResponse) {
+      if (err.error && typeof err.error === 'object' && err.error.message) {
+        return err.error.message;
+      }
+      if (err.status === 404) {
+        return 'Endpoint server / API tidak ditemukan (404). Silakan pastikan server backend / Vercel Serverless Function aktif.';
+      }
+      if (err.status === 0) {
+        return 'Tidak dapat terhubung ke server backend (Offline / Network Error).';
+      }
+      if (typeof err.error === 'string' && err.error.trim()) {
+        return err.error;
+      }
+    } else if (err && typeof err === 'object' && 'error' in err) {
+      const e = (err as { error?: { message?: string } }).error;
+      if (e?.message) return e.message;
+    }
+    return fallback;
   }
 }

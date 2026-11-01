@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getGlobalStats } from './storage';
@@ -7,6 +7,12 @@ interface TelegramConfig {
   botToken: string;
   chatId: string;
   enabled: boolean;
+}
+
+export interface TelegramSendResult {
+  ok: boolean;
+  message?: string;
+  errorCode?: number;
 }
 
 const CONFIG_FILE = join(process.cwd(), 'data', 'telegram_config.json');
@@ -23,7 +29,7 @@ function loadTelegramConfig(): TelegramConfig {
       if (data.chatId !== undefined) chatId = data.chatId;
       if (data.enabled !== undefined) enabled = data.enabled;
     } catch (err) {
-      console.error('Error reading telegram_config.json:', err);
+      console.debug('Error reading telegram_config.json:', err);
     }
   }
 
@@ -51,31 +57,70 @@ export function updateTelegramConfig(config: Partial<TelegramConfig>): TelegramC
   return currentConfig;
 }
 
-export async function sendTelegramMessage(text: string, parseMode: 'HTML' | 'Markdown' = 'HTML'): Promise<boolean> {
+export async function sendTelegramMessage(
+  text: string,
+  parseMode: 'HTML' | 'Markdown' = 'HTML'
+): Promise<TelegramSendResult> {
   const { botToken, chatId, enabled } = currentConfig;
 
-  if (!enabled || !botToken || !chatId) {
-    console.debug('Telegram notification skipped: missing botToken or chatId or disabled.');
-    return false;
+  if (!enabled || !botToken || !chatId || botToken.trim() === '' || chatId.trim() === '') {
+    return {
+      ok: false,
+      message: 'Telegram notification disabled or missing Bot Token / Chat ID.',
+    };
   }
 
   try {
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const url = `https://api.telegram.org/bot${botToken.trim()}/sendMessage`;
     const response = await axios.post(
       url,
       {
-        chat_id: chatId,
+        chat_id: chatId.trim(),
         text,
         parse_mode: parseMode,
       },
       { timeout: 8000 }
     );
 
-    return response.data && response.data.ok;
+    if (response.data && response.data.ok) {
+      return { ok: true, message: 'Message sent successfully.' };
+    } else {
+      return {
+        ok: false,
+        message: response.data?.description || 'Failed to send Telegram message.',
+      };
+    }
   } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const axiosErr = err as AxiosError<{ description?: string; error_code?: number }>;
+      const status = axiosErr.response?.status;
+      const description = axiosErr.response?.data?.description;
+
+      if (status === 403) {
+        const readableReason =
+          description ||
+          'Akses Ditolak (403): Bot Telegram diblokir atau belum menerima pesan /start dari Chat ID tersebut.';
+        console.warn('Telegram 403 Notice:', readableReason);
+        return { ok: false, errorCode: 403, message: readableReason };
+      }
+
+      if (status === 400 || status === 404) {
+        const readableReason =
+          description || 'Chat ID atau Bot Token Telegram tidak ditemukan / tidak valid.';
+        console.warn('Telegram Error:', readableReason);
+        return { ok: false, errorCode: status, message: readableReason };
+      }
+
+      return {
+        ok: false,
+        errorCode: status || 500,
+        message: description || axiosErr.message,
+      };
+    }
+
     const msg = err instanceof Error ? err.message : String(err);
-    console.error('Failed to send Telegram message:', msg);
-    return false;
+    console.warn('Telegram send warning:', msg);
+    return { ok: false, message: msg };
   }
 }
 
@@ -87,7 +132,7 @@ export async function notifyNewActivation(record: {
   maskedEmail: string;
   activatedAt: string;
   plan: string;
-}): Promise<boolean> {
+}): Promise<TelegramSendResult> {
   const formattedDate = new Date(record.activatedAt).toLocaleString('id-ID', {
     timeZone: 'Asia/Jakarta',
   });
@@ -110,7 +155,12 @@ export async function notifyNewActivation(record: {
  * Total Pengguna : X
  * Total Aktivasi : Y
  */
-export async function sendPeriodicStatsReport(): Promise<boolean> {
+export async function sendPeriodicStatsReport(): Promise<TelegramSendResult> {
+  const { botToken, chatId, enabled } = currentConfig;
+  if (!enabled || !botToken || !chatId) {
+    return { ok: false, message: 'Telegram configuration is incomplete.' };
+  }
+
   const stats = getGlobalStats();
 
   const message = [
@@ -134,9 +184,12 @@ export function startPeriodicStatsTimer() {
   const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
   setInterval(() => {
-    sendPeriodicStatsReport().catch((err) => {
-      console.error('Error in periodic Telegram stats report:', err);
-    });
+    const { botToken, chatId, enabled } = currentConfig;
+    if (enabled && botToken && chatId) {
+      sendPeriodicStatsReport().catch((err) => {
+        console.debug('Periodic Telegram stats report notice:', err);
+      });
+    }
   }, FIVE_MINUTES_MS);
 
   console.log('Telegram 5-minute periodic stats timer started.');

@@ -2,15 +2,14 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist/app/browser",
-  "framework": "angular",
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/dist/app/server/server.mjs"
+      "destination": "/api/index.js"
     },
     {
       "source": "/(.*)",
-      "destination": "/dist/app/browser/$1"
+      "destination": "/index.html"
     }
   ]
 }
