@@ -1,6 +1,6 @@
 {
-  "name": "Premotion — Liquid Glass Activation",
-  "description": "Liquid glass interface for Alight Motion premium license activation with magic link verification, Premotion order tracking, and global activation history.",
+  "name": "Premotion - Alight Motion 1 Year",
+  "description": "Platform resmi aktivasi Alight Motion Premium 1 Tahun instan melalui verifikasi Magic Link otomatis. Bebas iklan, tanpa password, dengan verifikasi Order ID transparan dan pencatatan riwayat global real-time.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
