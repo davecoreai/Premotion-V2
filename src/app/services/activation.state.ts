@@ -36,6 +36,9 @@ export interface StatsSnapshot {
 export class ActivationState {
   private http = inject(HttpClient);
 
+  // Fallback backend URL for custom domains (e.g. premotion.my.id) when static hosting has no local Express backend
+  private readonly fallbackBackend = 'https://ais-pre-kdo67hnc6ovn5z54mkxerv-86214995860.asia-northeast1.run.app';
+
   // Real Stats signals (NO simulation, start from 0)
   readonly totalActivations = signal<number>(0);
   readonly totalUsers = signal<number>(0);
@@ -83,10 +86,35 @@ export class ActivationState {
     }
   }
 
+  private async postApi<T>(endpoint: string, body: unknown): Promise<T> {
+    try {
+      return await firstValueFrom(this.http.post<T>(endpoint, body));
+    } catch (err) {
+      if (err instanceof HttpErrorResponse && (err.status === 404 || err.status === 0)) {
+        // Fallback to live Cloud Run backend if local API is missing on custom domain / static host
+        const fallbackUrl = `${this.fallbackBackend}${endpoint}`;
+        return await firstValueFrom(this.http.post<T>(fallbackUrl, body));
+      }
+      throw err;
+    }
+  }
+
+  private async getApi<T>(endpoint: string): Promise<T> {
+    try {
+      return await firstValueFrom(this.http.get<T>(endpoint));
+    } catch (err) {
+      if (err instanceof HttpErrorResponse && (err.status === 404 || err.status === 0)) {
+        const fallbackUrl = `${this.fallbackBackend}${endpoint}`;
+        return await firstValueFrom(this.http.get<T>(fallbackUrl));
+      }
+      throw err;
+    }
+  }
+
   async loadStats(): Promise<void> {
     this.isLoadingStats.set(true);
     try {
-      const res = await firstValueFrom(this.http.get<{ success: boolean } & StatsResponse>('/api/stats'));
+      const res = await this.getApi<{ success: boolean } & StatsResponse>('/api/stats');
       if (res && res.totalActivations !== undefined) {
         this.totalActivations.set(res.totalActivations);
         this.totalUsers.set(res.totalUsers);
@@ -102,7 +130,7 @@ export class ActivationState {
   async loadHistory(): Promise<void> {
     this.isLoadingHistory.set(true);
     try {
-      const res = await firstValueFrom(this.http.get<{ success: boolean; history: GlobalRecord[] }>('/api/history'));
+      const res = await this.getApi<{ success: boolean; history: GlobalRecord[] }>('/api/history');
       if (res && res.history) {
         this.globalHistory.set(res.history);
       }
@@ -138,11 +166,9 @@ export class ActivationState {
     this.statusSuccess.set(null);
 
     try {
-      const res = await firstValueFrom(
-        this.http.post<{ success: boolean; message: string; email: string }>('/api/send-link', {
-          email: clean,
-        })
-      );
+      const res = await this.postApi<{ success: boolean; message: string; email: string }>('/api/send-link', {
+        email: clean,
+      });
 
       if (res && res.success) {
         this.statusSuccess.set(res.message || `Magic link berhasil dikirim ke ${clean}. Cek inbox atau folder spam.`);
@@ -180,14 +206,12 @@ export class ActivationState {
     this.statusSuccess.set(null);
 
     try {
-      const res = await firstValueFrom(
-        this.http.post<{ success: boolean; message: string; data: GlobalRecord & { stats?: StatsSnapshot } }>(
-          '/api/verify-link',
-          {
-            email: currentEmail,
-            magicLink: cleanLink,
-          }
-        )
+      const res = await this.postApi<{ success: boolean; message: string; data: GlobalRecord & { stats?: StatsSnapshot } }>(
+        '/api/verify-link',
+        {
+          email: currentEmail,
+          magicLink: cleanLink,
+        }
       );
 
       if (res && res.success && res.data) {
