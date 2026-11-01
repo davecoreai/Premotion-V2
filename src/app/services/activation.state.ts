@@ -36,7 +36,9 @@ export interface StatsSnapshot {
 export class ActivationState {
   private http = inject(HttpClient);
 
-  // Fallback backend URL for custom domains (e.g. premotion.my.id) when static hosting has no local Express backend
+  // Primary Base URL as requested by user
+  private readonly baseUrl = 'https://premotion.my.id';
+  // Live Cloud Run backend fallback
   private readonly fallbackBackend = 'https://ais-pre-kdo67hnc6ovn5z54mkxerv-86214995860.asia-northeast1.run.app';
 
   // Real Stats signals (NO simulation, start from 0)
@@ -86,21 +88,30 @@ export class ActivationState {
     }
   }
 
+  private resolveUrl(endpoint: string): string {
+    if (typeof window !== 'undefined' && window.location.origin === this.baseUrl) {
+      return endpoint;
+    }
+    return `${this.baseUrl}${endpoint}`;
+  }
+
   private async postApi<T>(endpoint: string, body: unknown): Promise<T> {
+    const primaryUrl = this.resolveUrl(endpoint);
     try {
-      return await firstValueFrom(this.http.post<T>(endpoint, body));
+      return await firstValueFrom(this.http.post<T>(primaryUrl, body));
     } catch (err) {
-      console.warn(`Relative API ${endpoint} failed, retrying with live Cloud Run backend...`, err);
+      console.warn(`Primary API ${primaryUrl} failed, retrying with live Cloud Run backend...`, err);
       const fallbackUrl = `${this.fallbackBackend}${endpoint}`;
       return await firstValueFrom(this.http.post<T>(fallbackUrl, body));
     }
   }
 
   private async getApi<T>(endpoint: string): Promise<T> {
+    const primaryUrl = this.resolveUrl(endpoint);
     try {
-      return await firstValueFrom(this.http.get<T>(endpoint));
+      return await firstValueFrom(this.http.get<T>(primaryUrl));
     } catch (err) {
-      console.warn(`Relative API ${endpoint} failed, retrying with live Cloud Run backend...`, err);
+      console.warn(`Primary API ${primaryUrl} failed, retrying with live Cloud Run backend...`, err);
       const fallbackUrl = `${this.fallbackBackend}${endpoint}`;
       return await firstValueFrom(this.http.get<T>(fallbackUrl));
     }
@@ -247,8 +258,9 @@ export class ActivationState {
 
   private extractErrorMessage(err: unknown, fallback: string): string {
     if (err instanceof HttpErrorResponse) {
-      if (err.error && typeof err.error === 'object' && err.error.message) {
-        return err.error.message;
+      if (err.error && typeof err.error === 'object') {
+        if (err.error.message) return err.error.message;
+        if (err.error.detail) return err.error.detail;
       }
       if (err.status === 404) {
         return 'Endpoint server / API tidak ditemukan (404). Silakan pastikan server backend / Vercel Serverless Function aktif.';
@@ -256,12 +268,13 @@ export class ActivationState {
       if (err.status === 0) {
         return 'Tidak dapat terhubung ke server backend (Offline / Network Error).';
       }
-      if (typeof err.error === 'string' && err.error.trim()) {
+      if (typeof err.error === 'string' && err.error.trim() && !err.error.includes('<!DOCTYPE')) {
         return err.error;
       }
     } else if (err && typeof err === 'object' && 'error' in err) {
-      const e = (err as { error?: { message?: string } }).error;
+      const e = (err as { error?: { message?: string; detail?: string } }).error;
       if (e?.message) return e.message;
+      if (e?.detail) return e.detail;
     }
     return fallback;
   }
