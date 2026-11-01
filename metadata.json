@@ -1,0 +1,6 @@
+{
+  "name": "Premotion — Liquid Glass Activation",
+  "description": "Liquid glass interface for Alight Motion premium license activation with magic link verification, Premotion order tracking, and global activation history.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

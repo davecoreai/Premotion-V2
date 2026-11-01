@@ -1,0 +1,92 @@
+<div class="relative min-h-screen bg-[#06090f] text-white overflow-x-hidden">
+  <!-- Main Container -->
+  <div class="relative z-10 flex flex-col min-h-screen max-w-3xl mx-auto px-4 sm:px-6">
+    <!-- Sticky Top Header (Header Tidak Ikut Scroll) -->
+    <header class="sticky top-0 z-40 bg-[#06090f]/95 backdrop-blur-xl pt-3 pb-3">
+      <div
+        class="liquid-glass-pill px-5 py-3 flex items-center justify-between"
+        style="border-radius: 50px;"
+      >
+        <!-- Brand Logo Only -->
+        <a routerLink="/home" class="flex items-center gap-3 cursor-pointer">
+          <div class="w-9 h-9 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold shadow-[0_0_15px_rgba(16,185,129,0.35)] shrink-0">
+            <mat-icon class="text-slate-950 text-xl font-bold">water_drop</mat-icon>
+          </div>
+          <span class="font-extrabold text-lg tracking-tight text-white">
+            Premotion
+          </span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Page Content View -->
+    <main class="flex-1 transition-opacity duration-300">
+      <router-outlet />
+    </main>
+
+    <!-- Floating Liquid Glass Bottom Navbar (3 Tabs: Home, Activation, History) -->
+    <nav
+      class="fixed bottom-4 inset-x-4 max-w-md mx-auto z-50 transition-all duration-300 transform"
+      [class.opacity-0]="isKeyboardOpen()"
+      [class.pointer-events-none]="isKeyboardOpen()"
+      [class.translate-y-24]="isKeyboardOpen()"
+    >
+      <div
+        class="liquid-glass-pill p-1.5 flex items-center relative shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden"
+        style="border-radius: 50px;"
+      >
+        <!-- Animated Sliding Glass Pill for 3 Tabs (Width: 33.3333%) -->
+        <div
+          class="absolute top-1 bottom-1 pointer-events-none p-0.5"
+          style="border-radius: 50px; width: 33.3333%; left: 0%; transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);"
+          [style.transform]="'translateX(' + (activeTabIndex() * 100) + '%)'"
+        >
+          <div
+            class="w-full h-full bg-emerald-500/25 border border-emerald-400/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+            style="border-radius: 50px;"
+          ></div>
+        </div>
+
+        <!-- 1. Home Tab -->
+        <a
+          routerLink="/home"
+          class="flex-1 flex flex-col items-center justify-center py-2 px-3 text-center transition-colors duration-200 cursor-pointer relative z-10 active:scale-95"
+          style="border-radius: 50px;"
+          [class.text-emerald-400]="activeTabIndex() === 0"
+          [class.text-slate-300]="activeTabIndex() !== 0"
+        >
+          <mat-icon class="text-xl transition-transform duration-200">home</mat-icon>
+          <span class="text-[11px] font-bold tracking-wide mt-0.5">Home</span>
+        </a>
+
+        <!-- 2. Activation Tab -->
+        <a
+          routerLink="/activation"
+          class="flex-1 flex flex-col items-center justify-center py-2 px-3 text-center transition-colors duration-200 cursor-pointer relative z-10 active:scale-95"
+          style="border-radius: 50px;"
+          [class.text-emerald-400]="activeTabIndex() === 1"
+          [class.text-slate-300]="activeTabIndex() !== 1"
+        >
+          @if (state.currentStep() > 1 && state.currentStep() < 3) {
+            <span class="absolute top-2 right-4 w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span class="absolute top-2 right-4 w-2 h-2 rounded-full bg-emerald-400"></span>
+          }
+          <mat-icon class="text-xl transition-transform duration-200">bolt</mat-icon>
+          <span class="text-[11px] font-bold tracking-wide mt-0.5">Activation</span>
+        </a>
+
+        <!-- 3. History Tab -->
+        <a
+          routerLink="/history"
+          class="flex-1 flex flex-col items-center justify-center py-2 px-3 text-center transition-colors duration-200 cursor-pointer relative z-10 active:scale-95"
+          style="border-radius: 50px;"
+          [class.text-emerald-400]="activeTabIndex() === 2"
+          [class.text-slate-300]="activeTabIndex() !== 2"
+        >
+          <mat-icon class="text-xl transition-transform duration-200">receipt_long</mat-icon>
+          <span class="text-[11px] font-bold tracking-wide mt-0.5">History</span>
+        </a>
+      </div>
+    </nav>
+  </div>
+</div>
